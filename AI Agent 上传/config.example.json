@@ -1,0 +1,5 @@
+{
+    "api_key": "在此粘贴你的 DeepSeek API Key（sk- 开头）",
+    "model": "deepseek-chat",
+    "temperature": 0.7
+}

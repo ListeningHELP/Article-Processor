@@ -1,0 +1,1789 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Article Processor</title>
+<style>
+  :root {
+    --bg: #dbeafe;
+    --panel: #ffffff;
+    --border: #bfdbfe;
+    --text: #1e293b;
+    --text2: #64748b;
+    --accent: #2563eb;
+    --accent-dark: #1d4ed8;
+    --accent-bg: #eaf2fd;
+    --green: #059669;
+    --green-bg: #ecfdf5;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(59,130,246,.06), 0 1px 2px rgba(59,130,246,.04);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+    background: var(--bg); color: var(--text); font-size:14px;
+  }
+  .app {
+    display:flex; height:calc(100vh - 16px); margin:8px;
+    background:var(--panel); border:2px solid #93c5fd; border-radius:14px; overflow:hidden;
+  }
+
+  /* ---------- 侧边栏 ---------- */
+  .sidebar {
+    width:150px; background:var(--panel); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; padding:16px 12px; gap:4px; flex-shrink:0;
+  }
+  .logo-txt {
+    font-size:17px; font-weight:700; color:var(--accent); letter-spacing:1px;
+    background:var(--accent-bg); border-radius:8px; padding:9px 12px; margin-bottom:12px;
+    user-select:none; text-align:center;
+  }
+  .nav-btn {
+    width:100%; padding:9px 12px; border:none; background:transparent; color:var(--text2);
+    border-radius:8px; cursor:pointer; text-align:left; font-size:13px;
+    transition:background .15s,color .15s;
+  }
+  .nav-btn:hover { background:var(--accent-bg); color:var(--accent); }
+  .nav-btn.active { background:var(--accent-bg); color:var(--accent); font-weight:600; }
+  .sidebar-spacer { flex:1; }
+  .side-quota {
+    font-size:11px; color:var(--text2); text-align:center; padding:5px 8px; margin:2px 0 6px;
+    border:1px dashed var(--border); border-radius:8px; cursor:pointer; user-select:none;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:border-color .15s,color .15s;
+  }
+  .side-quota:hover { border-color:var(--accent); color:var(--accent); }
+  .side-quota.low { color:#dc2626; border-color:#fca5a5; }
+
+  /* ---------- 主区 ---------- */
+  .main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .header {
+    height:56px; background:var(--panel); border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; padding:0 20px; flex-shrink:0;
+  }
+  .header h1 { font-size:16px; font-weight:600; }
+  .header-right { display:flex; align-items:center; gap:10px; }
+  .btn-ghost {
+    border:1px solid var(--border); background:var(--panel); color:var(--text2);
+    padding:6px 12px; border-radius:8px; cursor:pointer; font-size:12px; transition:all .15s;
+  }
+  .btn-ghost:hover { color:var(--accent); border-color:var(--accent); }
+
+  /* ---------- 对话页 ---------- */
+  .page { flex:1; display:none; flex-direction:column; min-height:0; }
+  .page.active { display:flex; }
+  .messages {
+    flex:1; overflow-y:auto; padding:24px 20px; display:flex; flex-direction:column; gap:16px;
+  }
+  .msg { display:flex; gap:10px; max-width:860px; }
+  .msg.user { align-self:flex-end; flex-direction:row-reverse; }
+  .msg .avatar {
+    width:32px; height:32px; border-radius:8px; flex-shrink:0; display:flex;
+    align-items:center; justify-content:center; font-size:15px;
+  }
+  .msg.user .avatar { background:var(--accent); color:#fff; }
+  .msg.bot .avatar { background:#eef2f7; border:1px solid var(--border); }
+  .msg .bubble {
+    padding:12px 16px; border-radius:12px; line-height:1.75; word-break:break-word;
+    overflow-wrap:anywhere; max-width:100%;
+  }
+  .msg.user .bubble { background:var(--accent); color:#fff; border-top-right-radius:4px; }
+  .msg.bot .bubble { background:var(--panel); border:1px solid var(--border); border-top-left-radius:4px; box-shadow:var(--shadow); }
+  .msg .bubble p { margin:6px 0; }
+  .msg .bubble p:first-child { margin-top:0; }
+  .msg .bubble p:last-child { margin-bottom:0; }
+  .msg .bubble h2,.msg .bubble h3,.msg .bubble h4 { margin:10px 0 6px; line-height:1.4; }
+  .msg .bubble ul { margin:6px 0; padding-left:22px; }
+  .msg .bubble ol { margin:6px 0; padding-left:22px; }
+  .msg .bubble code {
+    background:#f1f5f9; border:1px solid #e2e8f0; border-radius:4px; padding:1px 5px;
+    font-family:Consolas,"Courier New",monospace; font-size:12.5px; color:#be185d;
+  }
+  .msg .bubble pre.code-block {
+    background:#0f172a; color:#e2e8f0; border-radius:8px; padding:12px 14px; margin:8px 0;
+    overflow-x:auto; position:relative;
+  }
+  .msg .bubble pre.code-block .code-lang {
+    position:absolute; top:6px; right:10px; font-size:11px; color:#64748b; font-family:inherit;
+  }
+  .msg .bubble pre.code-block code { background:transparent; border:none; color:inherit; padding:0; font-size:13px; }
+  .msg .bubble a { color:var(--accent); text-decoration:none; }
+  .msg .bubble a:hover { text-decoration:underline; }
+  .typing-dots { display:inline-flex; gap:4px; padding:4px 2px; }
+  .typing-dots span { width:7px; height:7px; background:#cbd5e1; border-radius:50%; animation:blink 1.2s infinite; }
+  .typing-dots span:nth-child(2){ animation-delay:.2s; }
+  .typing-dots span:nth-child(3){ animation-delay:.4s; }
+  @keyframes blink { 0%,80%,100%{opacity:.3} 40%{opacity:1} }
+
+  /* ---------- 输入区 ---------- */
+  .input-area { border-top:1px solid var(--border); background:var(--panel); padding:12px 20px 16px; flex-shrink:0; }
+  .quick-actions { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .chip {
+    border:1px solid var(--border); background:#f5f9ff; color:var(--text2); padding:4px 12px;
+    border-radius:999px; cursor:pointer; font-size:12px; transition:all .15s;
+  }
+  .chip:hover { background:var(--accent-bg); color:var(--accent); border-color:var(--accent); }
+  .input-row { display:flex; gap:10px; align-items:flex-end; }
+  .input-row textarea {
+    flex:1; resize:none; border:1px solid var(--border); border-radius:12px; padding:12px 14px;
+    font-family:inherit; font-size:14px; line-height:1.6; min-height:52px; max-height:160px;
+    outline:none; transition:border-color .15s; background:#fff;
+  }
+  .input-row textarea:focus { border-color:var(--accent); background:#fff; }
+  .btn-send {
+    border:none; background:var(--accent); color:#fff; padding:12px 22px; border-radius:12px;
+    cursor:pointer; font-size:14px; font-weight:600; transition:background .15s; flex-shrink:0;
+  }
+  .btn-send:hover { background:var(--accent-dark); }
+  .btn-send:disabled { background:#93b4f3; cursor:not-allowed; }
+  .btn-sm { padding:5px 14px; font-size:12px; border-radius:8px; }
+
+  /* ---------- 翻译页 ---------- */
+  .translate-wrap { flex:1; display:flex; flex-direction:column; min-height:0; padding:16px 20px; gap:12px; }
+  .t-options { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .t-docbar {
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    border:1px dashed var(--border); border-radius:10px; padding:8px 12px; background:#fff;
+  }
+  #doc-info { font-size:12px; color:var(--text2); max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .t-options label { font-size:12px; color:var(--text2); }
+  .t-options select {
+    border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-size:13px;
+    background:#fff; color:var(--text); outline:none; cursor:pointer;
+  }
+  .t-options select:focus { border-color:var(--accent); }
+  .t-body { flex:1; display:flex; gap:12px; min-height:0; }
+
+  /* ---------- 批量文档队列 ---------- */
+  .t-queue { display:none; flex-direction:column; gap:6px; }
+  .t-queue.show { display:flex; }
+  .t-qrow {
+    display:flex; align-items:center; gap:10px; border:1px solid var(--border);
+    border-radius:8px; padding:7px 12px; background:#fff; font-size:12px;
+  }
+  .t-qname { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
+  .t-qstatus { flex:none; width:110px; text-align:right; color:var(--text2); font-size:11px; }
+  .t-qbar { flex:none; width:130px; height:6px; background:#e8eef7; border-radius:999px; overflow:hidden; }
+  .t-qbar .bar { height:100%; width:0%; background:var(--accent); border-radius:999px; transition:width .3s; }
+  .t-qact { flex:none; display:flex; gap:6px; }
+  .t-qact .btn-ghost { padding:3px 9px; font-size:11px; }
+  .t-qerr { color:#dc2626; font-size:11px; }
+  .t-pane { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .t-pane .pane-label { font-size:12px; color:var(--text2); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; height:22px; overflow:hidden; }
+  .t-pane .pane-label button { padding:0 8px; height:20px; line-height:20px; font-size:12px; }
+  .t-pane textarea {
+    flex:1; resize:none; border:1px solid var(--border); border-radius:12px; padding:12px 14px;
+    font-family:inherit; font-size:14px; line-height:1.7; outline:none; background:#fff;
+  }
+  .t-pane textarea:focus { border-color:var(--accent); background:#fff; }
+  .t-output {
+    flex:1; border:1px solid var(--border); border-radius:12px; padding:12px 14px; overflow-y:auto;
+    background:#fff; line-height:1.75; white-space:pre-wrap; word-break:break-word; font-size:14px;
+  }
+  .t-output .placeholder { color:#9ca3af; }
+  .t-footer { display:flex; gap:10px; align-items:center; }
+  .t-progress { flex:1; height:6px; background:#e5e7eb; border-radius:999px; overflow:hidden; display:none; }
+  .t-progress .bar { height:100%; width:0%; background:var(--green); border-radius:999px; transition:width .3s; }
+  .t-progress-text { font-size:12px; color:var(--text2); }
+  .glossary { border-top:1px dashed var(--border); padding-top:10px; }
+  .glossary summary { cursor:pointer; font-size:12px; color:var(--text2); user-select:none; }
+  .glossary textarea {
+    width:100%; margin-top:8px; border:1px solid var(--border); border-radius:8px; padding:8px 10px;
+    font-family:inherit; font-size:13px; line-height:1.6; resize:vertical; min-height:60px; outline:none;
+  }
+
+  /* ---------- 设置模态 ---------- */
+  .modal-mask {
+    position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:center;
+    justify-content:center; z-index:100;
+  }
+  .modal-mask.show { display:flex; }
+  .modal {
+    width:440px; max-width:92vw; background:#fff; border-radius:16px; padding:24px;
+    box-shadow:0 20px 40px rgba(0,0,0,.2); max-height:90vh; overflow-y:auto;
+  }
+  .modal h2 { font-size:17px; margin-bottom:18px; }
+  .form-item { margin-bottom:16px; }
+  .form-item label { display:block; font-size:13px; color:var(--text2); margin-bottom:6px; }
+  .form-item input[type=password], .form-item input[type=text], .form-item select {
+    width:100%; border:1px solid var(--border); border-radius:10px; padding:10px 12px;
+    font-size:14px; outline:none; font-family:inherit;
+  }
+  .form-item input:focus, .form-item select:focus { border-color:var(--accent); }
+  .form-item .range-row { display:flex; align-items:center; gap:10px; }
+  .form-item input[type=range] { flex:1; accent-color:var(--accent); }
+  .range-val { width:40px; text-align:right; font-size:13px; color:var(--text2); }
+  .status-line { font-size:12px; margin-bottom:14px; padding:10px 12px; border-radius:8px; background:#f8fafc; color:var(--text2); }
+  .status-line.ok { background:var(--green-bg); color:var(--green); }
+  .status-line.bad { background:#fef2f2; color:#dc2626; }
+  .modal-btns { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+  .btn-primary {
+    border:none; background:var(--accent); color:#fff; padding:9px 18px; border-radius:10px;
+    cursor:pointer; font-size:14px; font-weight:600;
+  }
+  .btn-primary:hover { background:var(--accent-dark); }
+  .btn-primary:disabled { background:#93b4f3; cursor:wait; }
+  .btn-close {
+    border:1px solid var(--border); background:#fff; color:var(--text2); padding:9px 18px;
+    border-radius:10px; cursor:pointer; font-size:14px;
+  }
+  .err-text { color:#dc2626; font-size:13px; margin-top:6px; display:none; }
+  .get-key {
+    display:inline-block; margin-top:6px; font-size:12px; color:var(--accent); text-decoration:none;
+  }
+  .get-key:hover { text-decoration:underline; }
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+
+  /* ---------- 章节编辑页 ---------- */
+  .chapter-wrap { display:flex; flex-direction:column; gap:10px; flex:1; min-height:0; }
+  .c-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 12px; background:#fff; border:1px solid var(--border); border-radius:12px; }
+  .c-toolbar2 { background:#f5f9ff; }
+  .c-files { display:none; flex-direction:column; gap:4px; }
+  .c-files.show { display:flex; }
+  .c-frow {
+    display:flex; align-items:center; gap:10px; border:1px solid var(--border);
+    border-radius:8px; padding:6px 12px; background:#fff; font-size:12px; cursor:pointer;
+  }
+  .c-frow:hover { border-color:var(--accent); }
+  .c-frow.open { background:var(--accent-bg); border-color:var(--accent); }
+  .c-fname { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .c-fmeta { flex:none; color:var(--text2); font-size:11px; }
+  .c-frm { flex:none; border:none; background:transparent; color:#dc2626; cursor:pointer; font-size:14px; line-height:1; padding:2px 4px; }
+  .c-frm:hover { color:#b91c1c; }
+  .t-qrm { flex:none; border:none; background:transparent; color:#dc2626; cursor:pointer; font-size:15px; line-height:1; padding:2px 4px; }
+  .t-qrm:hover { color:#b91c1c; }
+  .c-info { font-size:12px; color:var(--text2); max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .c-sep { color:#d1d5db; margin:0 2px; }
+  .c-lbl { font-size:12px; color:var(--text2); }
+  .c-input {
+    border:1px solid var(--border); border-radius:8px; padding:6px 9px; font-size:13px;
+    outline:none; font-family:inherit; width:140px;
+  }
+  .c-input:focus { border-color:var(--accent); }
+  .c-input.c-author { width:100px; }
+  .c-input.c-custom { width:220px; font-family:Consolas,Monaco,monospace; font-size:12px; }
+  .c-input.c-len { width:70px; }
+  .c-split { padding:6px 16px; font-size:13px; }
+  .c-stats { font-size:12px; color:var(--text2); padding:0 4px; }
+  .c-list { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding:2px; min-height:0; }
+  .c-item { background:#fff; border:1px solid var(--border); border-radius:10px; padding:8px 12px; }
+  .c-item .c-row { display:flex; align-items:center; gap:8px; }
+  .c-idx {
+    flex:none; width:34px; height:24px; border-radius:6px; background:var(--accent-bg, #eef3ff);
+    color:var(--accent); font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center;
+  }
+  .c-title-input {
+    flex:1; min-width:0; border:1px solid transparent; border-radius:6px; padding:4px 8px;
+    font-size:14px; font-weight:600; outline:none; font-family:inherit; background:transparent;
+  }
+  .c-title-input:hover { border-color:var(--border); background:#f5f9ff; }
+  .c-title-input:focus { border-color:var(--accent); background:#fff; }
+  .c-chars { flex:none; font-size:11px; color:var(--text2); }
+  .c-btn {
+    flex:none; border:1px solid var(--border); background:#fff; color:var(--text2);
+    border-radius:6px; padding:3px 9px; font-size:12px; cursor:pointer;
+  }
+  .c-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .c-btn.del:hover { border-color:#dc2626; color:#dc2626; }
+  .c-preview {
+    margin-top:8px; border-top:1px dashed var(--border); padding-top:8px;
+    font-size:13px; line-height:1.7; color:#374151; white-space:pre-wrap; word-break:break-word;
+    max-height:320px; overflow-y:auto; display:none;
+  }
+  .c-empty { text-align:center; color:#9ca3af; font-size:13px; padding:40px 0; }
+
+  /* ---------- 文本工具页 ---------- */
+  .tools-wrap {
+    flex:1; overflow-y:auto; padding:16px 20px; display:flex;
+    flex-direction:column; gap:16px; align-content:start;
+  }
+  .tool-card {
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:16px 18px; box-shadow:var(--shadow);
+  }
+  .tool-title { font-size:15px; font-weight:600; color:var(--accent); margin-bottom:4px; }
+  .tool-desc { font-size:12px; color:var(--text2); margin-bottom:10px; line-height:1.6; }
+  .tool-card .t-docbar { margin-bottom:8px; }
+  .tool-card .t-progress { margin-top:8px; }
+  .tool-card .t-progress-text { font-size:12px; color:var(--text2); margin-left:8px; }
+  .tool-card .t-queue { max-height:220px; }
+  .m-bar { display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
+  .m-bar-row { display:flex; align-items:center; gap:8px; }
+  .m-bar-ops { margin-top:2px; }
+  .m-info { font-size:12px; color:var(--text2); margin-left:4px; }
+  .m-spacer { flex:1; }
+
+  /* ---------- 帮助页 ---------- */
+  .help-wrap {
+    flex:1; overflow-y:auto; padding:20px; display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; align-content:start;
+  }
+  .help-card {
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:18px 20px; box-shadow:var(--shadow);
+  }
+  .help-card h3 { font-size:15px; margin-bottom:8px; color:var(--accent); font-weight:600; }
+  .help-card p { font-size:13px; color:var(--text2); margin-bottom:10px; line-height:1.6; }
+  .help-card ul { padding-left:18px; font-size:13px; color:var(--text); line-height:1.9; }
+  .help-card li::marker { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 侧边栏 -->
+  <div class="sidebar">
+    <div class="logo-txt">Article Processor</div>
+    <button class="nav-btn active" data-module="writing">写作</button>
+    <button class="nav-btn" data-module="translate">翻译</button>
+    <button class="nav-btn" data-module="chapter">章节</button>
+    <button class="nav-btn" data-module="tools">文本工具</button>
+    <div class="sidebar-spacer"></div>
+    <div class="side-quota" id="side-quota" onclick="refreshBalance()" title="点击刷新">额度 …</div>
+    <button class="nav-btn" data-module="help">帮助</button>
+    <button class="nav-btn" id="btnSettings">设置</button>
+  </div>
+
+  <!-- 主区 -->
+  <div class="main">
+    <!-- 写作页 -->
+    <div class="page active" id="page-writing">
+      <div class="header">
+        <div><h1>写作助手</h1></div>
+        <div class="header-right"><button class="btn-ghost" onclick="clearChat('writing')">清空对话</button></div>
+      </div>
+      <div class="messages" id="msgs-writing"></div>
+      <div class="input-area">
+        <div class="quick-actions" id="qa-writing"></div>
+        <div class="input-row">
+          <textarea id="input-writing" placeholder="描述你的写作需求，例如：帮我写一份《2026 年第三季度市场部工作总结》（Enter 发送，Shift+Enter 换行）"></textarea>
+          <button class="btn-send" id="btn-writing" onclick="sendChat('writing')">发送</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 翻译页 -->
+    <div class="page" id="page-translate">
+      <div class="header">
+        <div><h1>翻译</h1></div>
+        <div class="header-right">
+          <button class="btn-ghost" id="btn-download" onclick="downloadTranslation()" style="display:none">下载全部</button>
+          <button class="btn-ghost" id="btn-copy" onclick="copyTranslation()">复制译文</button>
+        </div>
+      </div>
+      <div class="translate-wrap">
+        <div class="t-docbar">
+          <input type="file" id="doc-file" accept=".txt,.epub,.mobi" multiple style="display:none">
+          <button class="btn-ghost" onclick="document.getElementById('doc-file').click()">批量导入文档</button>
+          <span id="doc-info"></span>
+          <button class="btn-ghost" id="btn-doc-clear" onclick="clearDoc()" style="display:none">清空列表</button>
+          <button class="btn-ghost" id="btn-batch" onclick="startAll()" style="display:none">全部开始</button>
+          <button class="btn-ghost" id="btn-batch-pause" onclick="pauseAll()" style="display:none">全部暂停</button>
+        </div>
+        <div class="t-queue" id="t-queue"></div>
+        <div class="t-options">
+          <label>源语言</label>
+          <select id="t-source">
+            <option value="auto">自动识别</option><option value="zh">中文</option>
+            <option value="en">英语</option><option value="ja">日语</option>
+            <option value="ko">韩语</option><option value="fr">法语</option>
+            <option value="de">德语</option><option value="es">西班牙语</option><option value="ru">俄语</option>
+          </select>
+          <label>目标语言</label>
+          <select id="t-target">
+            <option value="zh" selected>中文</option><option value="en">英语</option>
+            <option value="ja">日语</option><option value="ko">韩语</option>
+            <option value="fr">法语</option><option value="de">德语</option><option value="es">西班牙语</option>
+          </select>
+          <label>风格</label>
+          <select id="t-style">
+            <option value="academic">学术</option>
+            <option value="novel" selected>通俗小说</option>
+          </select>
+        </div>
+        <div class="t-body">
+          <div class="t-pane">
+            <div class="pane-label"><span>原文</span><span id="t-count">0 字</span></div>
+            <textarea id="t-input" placeholder="粘贴需要翻译的文本，支持整章小说。长文本会自动分块翻译，人名地名保持统一。"></textarea>
+          </div>
+          <div class="t-pane">
+            <div class="pane-label"><span>译文</span><span id="t-actions"><button class="btn-ghost" onclick="copyTranslation()">复制</button></span></div>
+            <div class="t-output" id="t-output"><span class="placeholder">译文将在这里显示…</span></div>
+          </div>
+        </div>
+        <div class="t-footer">
+          <button class="btn-send" id="btn-translate" onclick="runTranslate()">开始翻译</button>
+          <div class="t-progress" id="t-progress"><div class="bar" id="t-bar"></div></div>
+          <span class="t-progress-text" id="t-progress-text"></span>
+        </div>
+        <details class="glossary">
+          <summary>术语表（可选）— 固定人名/地名/专有名词的译法，每行一条，格式：原名 = 译名</summary>
+          <textarea id="t-glossary" placeholder="例如：&#10;Eren Yeager = 艾伦·耶格尔&#10;Titan = 巨人&#10;Scout Regiment = 调查兵团"></textarea>
+        </details>
+      </div>
+    </div>
+
+    <!-- 章节编辑页 -->
+    <div class="page" id="page-chapter">
+      <div class="header">
+        <div><h1>章节编辑</h1></div>
+        <div class="header-right">
+          <button class="btn-ghost" onclick="exportChapter('epub')">导出 EPUB</button>
+          <button class="btn-ghost" onclick="exportChapter('txt')">导出 TXT</button>
+          <button class="btn-ghost" onclick="exportChapter('mobi')">导出 MOBI</button>
+        </div>
+      </div>
+      <div class="chapter-wrap">
+        <div class="c-toolbar">
+          <input type="file" id="c-file" accept=".txt,.epub,.mobi" multiple style="display:none">
+          <button class="btn-ghost" onclick="document.getElementById('c-file').click()">批量导入文件</button>
+          <span id="c-info" class="c-info">未导入文件</span>
+          <span class="c-sep">|</span>
+          <label class="c-lbl">书名</label>
+          <input type="text" id="c-title" class="c-input" placeholder="书名">
+          <label class="c-lbl">作者</label>
+          <input type="text" id="c-author" class="c-input c-author" placeholder="作者">
+        </div>
+        <div class="c-files" id="c-files"></div>
+        <div class="c-toolbar c-toolbar2">
+          <label class="c-lbl">拆分规则</label>
+          <select id="c-rule"></select>
+          <input type="text" id="c-custom" class="c-input c-custom" placeholder="自定义正则，如 ^第[0-9一二三]+章" style="display:none">
+          <label class="c-lbl">按长度</label>
+          <input type="number" id="c-length" class="c-input c-len" value="130" min="1" title="每章目标千字数">
+          <button class="btn-send c-split" onclick="resplitChapters()">重新拆分</button>
+        </div>
+        <div class="c-stats" id="c-stats"></div>
+        <div class="c-list" id="c-list"></div>
+      </div>
+    </div>
+
+    <!-- 文本工具页 -->
+    <div class="page" id="page-tools">
+      <div class="header">
+        <div><h1>文本工具</h1></div>
+      </div>
+      <div class="tools-wrap">
+
+        <div class="tool-card">
+          <div class="tool-title">合并 TXT</div>
+          <div class="tool-desc">把多个 TXT 文件按顺序合并为一个文件，用于拼合分卷小说。</div>
+          <input type="file" id="m-file" accept=".txt" multiple style="display:none">
+          <input type="file" id="m-folder" webkitdirectory style="display:none">
+          <div class="m-bar">
+            <div class="m-bar-row">
+              <button class="btn-ghost" onclick="document.getElementById('m-file').click()">选择 TXT 文件</button>
+              <button class="btn-ghost" onclick="document.getElementById('m-folder').click()">选择文件夹合并</button>
+              <span id="m-info" class="m-info"></span>
+            </div>
+            <div class="m-bar-row m-bar-ops" id="m-ops" style="display:none">
+              <button class="btn-ghost btn-sm" id="m-clear" onclick="clearMerge()">清空列表</button>
+              <span class="m-spacer"></span>
+              <button class="btn-send btn-sm" id="m-run" onclick="runMerge()">开始合并</button>
+            </div>
+          </div>
+          <div class="c-files" id="m-list"></div>
+          <div class="t-progress" id="m-progress" style="display:none"><div class="bar" id="m-bar"></div></div>
+          <span class="t-progress-text" id="m-ptext"></span>
+        </div>
+
+        <div class="tool-card">
+          <div class="tool-title">网页转 TXT</div>
+          <div class="tool-desc">把 HTM / HTML 网页文件（或整个文件夹）批量转为纯文本。</div>
+          <input type="file" id="h-file" accept=".htm,.html,.shtml" multiple style="display:none">
+          <input type="file" id="h-folder" webkitdirectory style="display:none">
+          <div class="t-docbar">
+            <button class="btn-ghost" onclick="document.getElementById('h-file').click()">选择网页文件</button>
+            <button class="btn-ghost" onclick="document.getElementById('h-folder').click()">选择文件夹</button>
+            <button class="btn-ghost" id="h-start" onclick="toolStartAll('html')" style="display:none">全部开始</button>
+            <button class="btn-ghost" id="h-pause" onclick="toolPauseAll('html')" style="display:none">全部暂停</button>
+            <button class="btn-ghost" id="h-clear" onclick="toolClear('html')" style="display:none">清空列表</button>
+            <button class="btn-ghost" id="h-dl" onclick="toolDownloadAll('html')" style="display:none">下载全部</button>
+          </div>
+          <div class="t-queue" id="h-queue"></div>
+          <div class="t-progress" id="h-progress" style="display:none"><div class="bar" id="h-bar"></div></div>
+          <span class="t-progress-text" id="h-ptext"></span>
+        </div>
+
+        <div class="tool-card">
+          <div class="tool-title">批量转 PDF</div>
+          <div class="tool-desc">把 TXT 文件（或整个文件夹）批量转为 PDF，由本机 Word 排版生成。</div>
+          <input type="file" id="p-file" accept=".txt" multiple style="display:none">
+          <input type="file" id="p-folder" webkitdirectory style="display:none">
+          <div class="t-docbar">
+            <button class="btn-ghost" onclick="document.getElementById('p-file').click()">选择 TXT 文件</button>
+            <button class="btn-ghost" onclick="document.getElementById('p-folder').click()">选择文件夹</button>
+            <button class="btn-ghost" id="p-start" onclick="toolStartAll('pdf')" style="display:none">全部开始</button>
+            <button class="btn-ghost" id="p-pause" onclick="toolPauseAll('pdf')" style="display:none">全部暂停</button>
+            <button class="btn-ghost" id="p-clear" onclick="toolClear('pdf')" style="display:none">清空列表</button>
+            <button class="btn-ghost" id="p-dl" onclick="toolDownloadAll('pdf')" style="display:none">下载全部</button>
+          </div>
+          <div class="t-queue" id="p-queue"></div>
+          <div class="t-progress" id="p-progress" style="display:none"><div class="bar" id="p-bar"></div></div>
+          <span class="t-progress-text" id="p-ptext"></span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 帮助页 -->
+    <div class="page" id="page-help">
+      <div class="header">
+        <div><h1>帮助</h1></div>
+      </div>
+      <div class="help-wrap">
+        <div class="help-card">
+          <h3>写作</h3>
+          <p>生成团课总结、团课推文、活动报告、会议总结、自我介绍、PPT 演讲稿，或对已有文字进行润色。</p>
+          <ul>
+            <li>点顶部快捷指令，补上具体活动信息即可生成。</li>
+            <li>粘贴已有内容后可说"润色"、"改写成公文风格"。</li>
+          </ul>
+        </div>
+        <div class="help-card">
+          <h3>翻译</h3>
+          <p>翻译小说文本，或批量导入 TXT / EPUB / MOBI 文档翻译。</p>
+          <ul>
+            <li>直接粘贴文本，或点"批量导入文档"一次选择多个文件。</li>
+            <li>队列最多同时翻译 2 个文档，全部完成后可逐个复制/下载。</li>
+            <li>选择源语言、目标语言与风格；术语表可固定人名地名译法。</li>
+          </ul>
+        </div>
+        <div class="help-card">
+          <h3>章节</h3>
+          <p>批量导入书籍文件，按规则拆分章节、编辑后导出为电子书。</p>
+          <ul>
+            <li>支持 TXT / EPUB / MOBI，一次可导入多个文件，点文件切换编辑。</li>
+            <li>拆分规则：中文章节、英文章节、卷、序言附录、自定义正则、按长度均分。</li>
+            <li>可改标题、预览、删除章节；导出带目录的 EPUB / TXT / MOBI。</li>
+          </ul>
+        </div>
+        <div class="help-card">
+          <h3>文本工具</h3>
+          <p>合并 TXT、网页转 TXT、批量转 PDF，全部支持批量处理。</p>
+          <ul>
+            <li>合并 TXT：多选文件，或选文件夹自动按名称顺序合并其中全部 TXT 为一个文件。</li>
+            <li>网页转 TXT：选择 HTM/HTML 文件或整个文件夹，逐个转为纯文本。</li>
+            <li>批量转 PDF：选择 TXT 文件或文件夹，由本机 Word 生成 PDF，逐项下载。</li>
+          </ul>
+        </div>
+        <div class="help-card">
+          <h3>设置</h3>
+          <p>配置 DeepSeek API Key、选择模型与温度参数。</p>
+          <ul>
+            <li>首次使用：点"设置"，粘贴 API Key，保存后点"测试连接"验证。</li>
+            <li>deepseek-chat 快速实惠；deepseek-reasoner 更强但更慢。</li>
+            <li>API Key 仅保存在本机 config.json，不会上传。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 设置模态 -->
+<div class="modal-mask" id="settingsModal">
+  <div class="modal">
+    <h2>设置</h2>
+    <div class="status-line" id="cfg-status">正在读取配置…</div>
+    <div class="form-item">
+      <label>DeepSeek API Key</label>
+      <input type="password" id="cfg-key" placeholder="sk-xxxxxxxxxxxxxxxx" autocomplete="off">
+      <a class="get-key" href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">还没有 Key？去 DeepSeek 开放平台申请 →</a>
+    </div>
+    <div class="form-item">
+      <label>模型</label>
+      <select id="cfg-model">
+        <option value="deepseek-chat">deepseek-chat（V3，通用快，日常首选）</option>
+        <option value="deepseek-reasoner">deepseek-reasoner（R1，深度推理，复杂任务）</option>
+      </select>
+    </div>
+    <div class="form-item">
+      <label>温度（创造性程度，越高越发散）</label>
+      <div class="range-row">
+        <input type="range" id="cfg-temp" min="0" max="1.5" step="0.1" value="0.7">
+        <span class="range-val" id="cfg-temp-val">0.7</span>
+      </div>
+    </div>
+    <div class="err-text" id="cfg-err"></div>
+    <div class="modal-btns">
+      <button class="btn-close" onclick="closeSettings()">关闭</button>
+      <button class="btn-primary" id="btn-test" onclick="testConnection()">测试连接</button>
+      <button class="btn-primary" id="btn-save" onclick="saveSettings()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= 全局状态 ================= */
+const MODULES = ['writing'];
+const HISTORY_KEY = m => 'aiagent.history.' + m;
+let currentModule = 'writing';
+let busy = false;           // 对话忙状态
+let tBusy = false;          // 翻译忙状态
+let lastTranslation = '';
+let settings = { configured: false, model: 'deepseek-chat', temperature: 0.7 };
+
+const QUICK_ACTIONS = {
+  writing: [
+    { label: '团课总结', text: '帮我写一份主题团课活动总结，包括活动背景、开展过程、学习收获、问题与改进建议。' },
+    { label: '团课推文', text: '帮我写一篇主题团课的公众号推文，面向大学生，标题有吸引力，内容简洁有感染力，可适当升华主题。' },
+    { label: '活动报告', text: '帮我写一份学院活动的工作报告，包括活动概况、组织过程、成果亮点、存在问题与改进建议。' },
+    { label: '会议总结', text: '帮我整理一份会议总结，提炼会议要点、达成的共识和后续行动项。' },
+    { label: '自我介绍', text: '帮我写一份自我介绍，突出我的经历和特长，语气自然大方，适合学生场合。' },
+    { label: 'PPT 演讲', text: '帮我写一份 PPT 演讲稿，开场引人入胜，逻辑层次清晰，结尾简洁有力。' },
+    { label: '润色', text: '请润色下面的文字，使其更专业、流畅：\n\n' },
+  ],
+};
+
+/* ================= 安全渲染 ================= */
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function renderMarkdown(text) {
+  const blocks = [];
+  let p = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (m, lang, code) => {
+    blocks.push({ lang: lang || '', code });
+    return '\u0000BLOCK' + (blocks.length - 1) + '\u0000';
+  });
+  p = escapeHtml(p);
+  p = p.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  p = p.replace(/^### (.*)$/gm, '<h4>$1</h4>');
+  p = p.replace(/^## (.*)$/gm, '<h3>$1</h3>');
+  p = p.replace(/^# (.*)$/gm, '<h2>$1</h2>');
+  p = p.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  p = p.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  p = p.replace(/^\s*[-*] (.*)$/gm, '<li>$1</li>');
+  p = p.replace(/^\s*\d+\. (.*)$/gm, '<li>$1</li>');
+  p = p.replace(/\n/g, '<br>');
+  p = p.replace(/\u0000BLOCK(\d+)\u0000/g, (m, i) => {
+    const b = blocks[+i];
+    return '<pre class="code-block"><span class="code-lang">' + escapeHtml(b.lang) +
+           '</span><code>' + escapeHtml(b.code) + '</code></pre>';
+  });
+  return p;
+}
+
+/* ================= 消息渲染 ================= */
+function addMsg(module, role, content, isHtml) {
+  const box = document.getElementById('msgs-' + module);
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + role;
+  const avatar = role === 'user' ? '我' : 'AI';
+  wrap.innerHTML = '<div class="avatar">' + avatar + '</div><div class="bubble">' +
+    (isHtml ? content : renderMarkdown(content)) + '</div>';
+  box.appendChild(wrap);
+  box.scrollTop = box.scrollHeight;
+  return wrap;
+}
+function addTyping(module) {
+  const box = document.getElementById('msgs-' + module);
+  const wrap = document.createElement('div');
+  wrap.className = 'msg bot';
+  wrap.innerHTML = '<div class="avatar">AI</div><div class="bubble"><span class="typing-dots"><span></span><span></span><span></span></span></div>';
+  box.appendChild(wrap);
+  box.scrollTop = box.scrollHeight;
+  return wrap;
+}
+function saveHistory(module) {
+  const msgs = [];
+  document.querySelectorAll('#msgs-' + module + ' .msg').forEach(el => {
+    const role = el.classList.contains('user') ? 'user' : 'assistant';
+    const bubble = el.querySelector('.bubble');
+    if (!bubble) return;
+    if (el.dataset.saved === '1') return;
+    msgs.push({ role, content: bubble.dataset.raw || bubble.textContent });
+  });
+  const old = JSON.parse(localStorage.getItem(HISTORY_KEY(module)) || '[]');
+  const merged = old.concat(msgs).slice(-60);
+  localStorage.setItem(HISTORY_KEY(module), JSON.stringify(merged));
+  document.querySelectorAll('#msgs-' + module + ' .msg').forEach(el => el.dataset.saved = '1');
+}
+function loadHistory(module) {
+  const history = JSON.parse(localStorage.getItem(HISTORY_KEY(module)) || '[]');
+  history.forEach(m => addMsg(module, m.role === 'user' ? 'user' : 'bot', m.content));
+}
+function getHistory(module) {
+  const out = [];
+  document.querySelectorAll('#msgs-' + module + ' .msg').forEach(el => {
+    if (el.dataset.saved !== '1') return;
+    const role = el.classList.contains('user') ? 'user' : 'assistant';
+    const bubble = el.querySelector('.bubble');
+    if (bubble) out.push({ role, content: bubble.dataset.raw || bubble.textContent });
+  });
+  return out;
+}
+function clearChat(module) {
+  if (!confirm('确定清空该模块的全部对话记录吗？')) return;
+  document.getElementById('msgs-' + module).innerHTML = '';
+  localStorage.removeItem(HISTORY_KEY(module));
+}
+
+/* ================= 流式请求 ================= */
+async function streamPost(url, body, handlers, signal) {
+  const isForm = body instanceof FormData;
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      body: isForm ? body : JSON.stringify(body),
+      headers: isForm ? {} : { 'Content-Type': 'application/json' },
+      signal: signal || undefined,
+    });
+  } catch (e) {
+    if (e && e.name === 'AbortError') { handlers.abort && handlers.abort(); return; }
+    handlers.error && handlers.error({ message: '无法连接本地服务：' + e.message });
+    return;
+  }
+  if (!resp.ok) {
+    let err = { message: 'HTTP ' + resp.status };
+    try { err = await resp.json(); } catch (e) {}
+    handlers.error && handlers.error(err);
+    return;
+  }
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buffer.indexOf('\n\n')) >= 0) {
+        const raw = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        for (const line of raw.split('\n')) {
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload) continue;
+          try {
+            const evt = JSON.parse(payload);
+            if (evt.type === 'delta') handlers.delta && handlers.delta(evt.text || '');
+            else if (evt.type === 'progress') handlers.progress && handlers.progress(evt);
+            else if (evt.type === 'error') handlers.error && handlers.error(evt);
+            else if (evt.type === 'doc_meta') handlers.doc_meta && handlers.doc_meta(evt);
+            else if (evt.type === 'done') handlers.done && handlers.done(evt);
+            else if (evt.type === 'file_done') handlers.file_done && handlers.file_done(evt);
+            else if (evt.type === 'file_error') handlers.file_error && handlers.file_error(evt);
+          } catch (e) {}
+        }
+      }
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') { handlers.abort && handlers.abort(); return; }
+    handlers.error && handlers.error({ message: '读取响应中断：' + e.message });
+  }
+}
+
+/* ================= 对话（写作） ================= */
+function sendChat(module) {
+  if (busy) return;
+  const input = document.getElementById('input-' + module);
+  const content = input.value.trim();
+  if (!content) return;
+  input.value = '';
+  input.style.height = 'auto';
+  addMsg(module, 'user', content);
+  const typing = addTyping(module);
+  busy = true;
+  setSendDisabled(true);
+  let answer = '';
+  const bubbleEl = typing.querySelector('.bubble');
+
+  streamPost('/api/chat', { module, messages: getHistory(module).concat([{ role: 'user', content }]) }, {
+    delta(text) {
+      answer += text;
+      bubbleEl.dataset.raw = answer;
+      bubbleEl.innerHTML = renderMarkdown(answer);
+      const box = document.getElementById('msgs-' + module);
+      box.scrollTop = box.scrollHeight;
+    },
+    error(err) {
+      bubbleEl.innerHTML = '<span style="color:#dc2626">⚠️ ' + escapeHtml(err.message || '未知错误') + '</span>';
+      finish();
+    },
+    done() {
+      finish();
+    },
+    progress() {}
+  });
+
+  function finish() {
+    busy = false;
+    setSendDisabled(false);
+    saveHistory(module);
+  }
+}
+function setSendDisabled(v) {
+  MODULES.forEach(m => {
+    document.getElementById('btn-' + m).disabled = v;
+  });
+}
+
+/* ================= 翻译 ================= */
+let docFiles = [];            // 批量文档队列 [{file, name, status, pct, text, err}]
+const BATCH_CONCURRENCY = 2;  // 同时翻译的文档数（避免触发 DeepSeek 限流）
+
+async function runTranslate() {
+  if (tBusy) return;
+  // 有批量文档队列 → 批量翻译；否则走粘贴文本
+  if (docFiles.length) { startAll(); return; }
+  const text = document.getElementById('t-input').value.trim();
+  if (!text) { alert('请先粘贴需要翻译的文本，或点击上方「批量导入文档」上传 TXT/EPUB/MOBI 文件。'); return; }
+  tBusy = true;
+  document.getElementById('btn-translate').disabled = true;
+  document.getElementById('btn-translate').textContent = '翻译中…';
+  const prog = document.getElementById('t-progress');
+  const bar = document.getElementById('t-bar');
+  const ptext = document.getElementById('t-progress-text');
+  const output = document.getElementById('t-output');
+  prog.style.display = 'block';
+  bar.style.width = '0%';
+  ptext.textContent = '准备分块…';
+  output.innerHTML = '';
+  lastTranslation = '';
+  document.getElementById('btn-download').style.display = 'none';
+  let full = '';
+
+  await streamPost('/api/translate', {
+    text,
+    source: document.getElementById('t-source').value,
+    target: document.getElementById('t-target').value,
+    style: document.getElementById('t-style').value,
+    glossary: document.getElementById('t-glossary').value.trim(),
+  }, {
+    progress(evt) {
+      bar.style.width = Math.round(evt.done / evt.total * 100) + '%';
+      ptext.textContent = '正在翻译第 ' + evt.done + ' / ' + evt.total + ' 块…';
+    },
+    delta(t) {
+      full += t;
+      lastTranslation = full;
+      output.innerHTML = escapeHtml(full).replace(/\n/g, '<br>');
+      output.scrollTop = output.scrollHeight;
+    },
+    error(err) {
+      output.innerHTML = '<span style="color:#dc2626">⚠️ ' + escapeHtml(err.message || '未知错误') + '</span>';
+    },
+    done(evt) {
+      if (evt.full_text) {
+        full = evt.full_text;
+        lastTranslation = full;
+        output.innerHTML = escapeHtml(full).replace(/\n/g, '<br>');
+      }
+      bar.style.width = '100%';
+      ptext.textContent = '翻译完成 ✔';
+      if (evt.failed) {
+        output.innerHTML += '<div style="color:#dc2626;margin-top:8px;font-size:12px">⚠️ 有 ' + evt.failed + ' 块翻译失败已跳过，译文不完整，可重试。</div>';
+      }
+    }
+  });
+  tBusy = false;
+  document.getElementById('btn-translate').disabled = false;
+  document.getElementById('btn-translate').textContent = '开始翻译';
+}
+
+function renderQueue() {
+  const box = document.getElementById('t-queue');
+  const doneCount = docFiles.filter(f => f.status === 'done').length;
+  const runCount = docFiles.filter(f => f.status === 'running').length;
+  const waitCount = docFiles.filter(f => f.status === 'wait').length;
+  const pauseCount = docFiles.filter(f => f.status === 'paused' || f.status === 'error').length;
+  document.getElementById('doc-info').textContent = docFiles.length
+    ? '已选 ' + docFiles.length + ' 个文档（完成 ' + doneCount + ' · 翻译中 ' + runCount + '）' : '';
+  document.getElementById('btn-doc-clear').style.display = docFiles.length ? 'inline-block' : 'none';
+  document.getElementById('btn-batch').style.display = (waitCount || pauseCount) ? 'inline-block' : 'none';
+  document.getElementById('btn-batch-pause').style.display = runCount ? 'inline-block' : 'none';
+  document.getElementById('btn-download').style.display = doneCount ? 'inline-block' : 'none';
+  // 批量模式隐藏顶部「复制译文」，避免复制到粘贴翻译的旧内容
+  document.getElementById('btn-copy').style.display = docFiles.length ? 'none' : 'inline-block';
+  box.classList.toggle('show', docFiles.length > 0);
+  if (!docFiles.length) { box.innerHTML = ''; return; }
+  box.innerHTML = '';
+  docFiles.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 't-qrow';
+    let statusHtml = '';
+    const acts = [];
+    if (f.status === 'wait') {
+      statusHtml = '<span class="t-qstatus">等待中</span>';
+      acts.push('<button class="btn-ghost" onclick="startRow(' + i + ')">开始</button>');
+    } else if (f.status === 'running') {
+      statusHtml = '<span class="t-qstatus">翻译中</span><div class="t-qbar"><div class="bar" style="width:' + f.pct + '%"></div></div>';
+      acts.push('<button class="btn-ghost" onclick="pauseRow(' + i + ')">暂停</button>');
+    } else if (f.status === 'paused') {
+      statusHtml = '<span class="t-qstatus" style="color:var(--text2)">已暂停</span><div class="t-qbar"><div class="bar" style="width:' + f.pct + '%;background:#94a3b8"></div></div>';
+      acts.push('<button class="btn-ghost" onclick="startRow(' + i + ')">继续</button>');
+    } else if (f.status === 'error') {
+      statusHtml = '<span class="t-qerr">' + escapeHtml(f.err || '失败') + '</span>';
+      acts.push('<button class="btn-ghost" onclick="startRow(' + i + ')">重试</button>');
+    } else if (f.status === 'done') {
+      statusHtml = '<span class="t-qstatus" style="color:var(--green)">完成 ✔</span><div class="t-qbar"><div class="bar" style="width:100%;background:var(--green)"></div></div>';
+      acts.push('<button class="btn-ghost" onclick="downloadRow(' + i + ')">下载</button>');
+    }
+    row.innerHTML = '<span class="t-qname" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + '</span>' +
+      statusHtml +
+      (acts.length ? '<span class="t-qact">' + acts.join('') + '</span>' : '') +
+      '<button class="t-qrm" onclick="removeRow(' + i + ')" title="移除任务">×</button>';
+    box.appendChild(row);
+  });
+}
+
+function removeRow(i) {
+  const f = docFiles[i];
+  if (!f) return;
+  if (f.status === 'running' && f.ctrl) f.ctrl.abort();
+  docFiles.splice(i, 1);
+  renderQueue();
+  const info = document.getElementById('doc-info');
+  if (!docFiles.length) {
+    info.textContent = '';
+    document.getElementById('doc-file').value = '';
+  }
+}
+
+function startRow(i) {
+  const f = docFiles[i];
+  if (!f || f.status === 'running' || f.status === 'done') return;
+  f.status = 'wait';
+  f.err = '';
+  renderQueue();
+  scheduleBatch();
+}
+function pauseRow(i) {
+  const f = docFiles[i];
+  if (!f || f.status !== 'running') return;
+  if (f.ctrl) f.ctrl.abort();
+  f.status = 'paused';
+  renderQueue();
+}
+function startAll() {
+  let changed = false;
+  docFiles.forEach(f => {
+    if (f.status === 'paused' || f.status === 'error') { f.status = 'wait'; f.err = ''; changed = true; }
+  });
+  if (changed) renderQueue();
+  scheduleBatch();
+}
+function pauseAll() {
+  docFiles.forEach(f => {
+    if (f.status === 'running') { if (f.ctrl) f.ctrl.abort(); f.status = 'paused'; }
+    else if (f.status === 'wait') { f.status = 'paused'; }
+  });
+  renderQueue();
+}
+
+let batchTimer = null;
+function scheduleBatch() {
+  if (batchTimer) return;
+  batchTimer = setInterval(() => {
+    const running = docFiles.filter(f => f.status === 'running').length;
+    const waiting = docFiles.filter(f => f.status === 'wait');
+    if (!waiting.length || running >= BATCH_CONCURRENCY) {
+      if (!waiting.length && !running) { clearInterval(batchTimer); batchTimer = null; }
+      return;
+    }
+    const slots = BATCH_CONCURRENCY - running;
+    for (let i = 0; i < slots && i < waiting.length; i++) {
+      translateOne(waiting[i]);
+    }
+  }, 300);
+}
+
+function translateOne(row) {
+  row.status = 'running';
+  row.pct = 0;
+  row.ctrl = new AbortController();
+  renderQueue();
+  const form = new FormData();
+  form.append('file', row.file);
+  form.append('source', document.getElementById('t-source').value);
+  form.append('target', document.getElementById('t-target').value);
+  form.append('style', document.getElementById('t-style').value);
+  form.append('glossary', document.getElementById('t-glossary').value.trim());
+  let full = '';
+  streamPost('/api/doc_translate', form, {
+    doc_meta(evt) {
+      row.pct = 2;
+      renderQueue();
+    },
+    progress(evt) {
+      row.pct = Math.round(evt.done / evt.total * 100);
+      renderQueue();
+    },
+    delta(t) {
+      full += t;
+    },
+    error(err) {
+      if (row.ctrl.signal.aborted) return;
+      row.status = 'error';
+      row.err = err.message || '未知错误';
+      renderQueue();
+    },
+    done(evt) {
+      if (row.ctrl.signal.aborted) return;
+      if (evt.full_text) full = evt.full_text;
+      row.text = full;
+      row.status = 'done';
+      row.pct = 100;
+      if (evt.failed) row.err = '有 ' + evt.failed + ' 块翻译失败已跳过，译文不完整';
+      renderQueue();
+    },
+    abort() {
+      if (row.status === 'running') row.status = 'paused';
+      renderQueue();
+    }
+  }, row.ctrl.signal).then(() => {
+    renderQueue();
+  }).catch(() => {
+    if (row.status === 'running') { row.status = 'error'; row.err = '请求中断'; }
+    renderQueue();
+  });
+}
+
+function downloadTranslation() {
+  // 批量模式：合并下载所有已完成文档的译文
+  const done = docFiles.filter(f => f.status === 'done' && f.text);
+  if (done.length) {
+    const parts = done.map(f => '【' + f.name + '】\n\n' + f.text).join('\n\n\n');
+    const blob = new Blob([parts], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '全部译文.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+    return;
+  }
+  if (!lastTranslation) { alert('还没有译文可下载。'); return; }
+  const blob = new Blob([lastTranslation], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '译文.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+
+function clearDoc() {
+  docFiles = [];
+  renderQueue();
+  document.getElementById('doc-file').value = '';
+}
+
+function handleDocPick(files) {
+  if (!files || !files.length) return;
+  let added = 0;
+  for (const file of files) {
+    const ok = /\.(txt|epub|mobi)$/i.test(file.name);
+    if (!ok) { alert('已跳过：' + file.name + '（仅支持 TXT / EPUB / MOBI 格式）'); continue; }
+    if (file.size > 20 * 1024 * 1024) { alert('已跳过：' + file.name + '（超过 20MB 上限）'); continue; }
+    if (docFiles.some(f => f.name === file.name)) { continue; }
+    docFiles.push({ file, name: file.name, status: 'wait', pct: 0, text: '', err: '' });
+    added++;
+  }
+  if (added) renderQueue();
+  else alert('没有可导入的文档。');
+}
+function copyTranslation() {
+  if (!lastTranslation) { alert('还没有译文可复制。'); return; }
+  navigator.clipboard.writeText(lastTranslation).then(
+    () => alert('译文已复制到剪贴板。'),
+    () => {
+      const ta = document.createElement('textarea');
+      ta.value = lastTranslation;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      alert('译文已复制到剪贴板。');
+    }
+  );
+}
+
+/* ================= 设置 ================= */
+async function loadStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const st = await r.json();
+    settings = st;
+    document.getElementById('cfg-model').value = st.model;
+    document.getElementById('cfg-temp').value = st.temperature;
+    document.getElementById('cfg-temp-val').textContent = st.temperature;
+    const line = document.getElementById('cfg-status');
+    if (st.configured) {
+      line.className = 'status-line ok';
+      line.textContent = '已配置（' + st.api_key_masked + '）· 模型：' + st.model;
+    } else {
+      line.className = 'status-line bad';
+      line.textContent = '尚未配置 API Key，请填写 DeepSeek Key 后保存。';
+    }
+  } catch (e) {
+    document.getElementById('cfg-status').textContent = '无法连接本地服务。';
+  }
+}
+function openSettings() {
+  document.getElementById('settingsModal').classList.add('show');
+  document.getElementById('cfg-err').style.display = 'none';
+  loadStatus();
+}
+function closeSettings() { document.getElementById('settingsModal').classList.remove('show'); }
+async function saveSettings() {
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true; btn.textContent = '保存中…';
+  const key = document.getElementById('cfg-key').value.trim();
+  const body = {
+    model: document.getElementById('cfg-model').value,
+    temperature: parseFloat(document.getElementById('cfg-temp').value),
+  };
+  if (key) body.api_key = key;
+  try {
+    const r = await fetch('/api/config', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const res = await r.json();
+    const line = document.getElementById('cfg-status');
+    if (res.configured) {
+      line.className = 'status-line ok';
+      line.textContent = '已保存（' + res.api_key_masked + '）· 模型：' + body.model;
+    } else {
+      line.className = 'status-line bad';
+      line.textContent = '已保存，但尚未填写 API Key。';
+    }
+    document.getElementById('cfg-key').value = '';
+    settings.configured = res.configured;
+  } catch (e) {
+    document.getElementById('cfg-err').textContent = '保存失败：' + e.message;
+    document.getElementById('cfg-err').style.display = 'block';
+  }
+  btn.disabled = false; btn.textContent = '保存';
+}
+async function testConnection() {
+  const btn = document.getElementById('btn-test');
+  btn.disabled = true; btn.textContent = '测试中…';
+  document.getElementById('cfg-err').style.display = 'none';
+  const line = document.getElementById('cfg-status');
+  const key = document.getElementById('cfg-key').value.trim();
+  if (key) {
+    // 临时保存以便测试
+    await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: key, model: document.getElementById('cfg-model').value,
+        temperature: parseFloat(document.getElementById('cfg-temp').value) }) });
+  }
+  let got = false;
+  await streamPost('/api/chat', {
+    module: 'writing',
+    messages: [{ role: 'user', content: '请只回复两个字：正常' }],
+  }, {
+    delta(t) { if (!got) { got = true; line.className = 'status-line ok'; line.textContent = '✅ 连接成功！' + t; } },
+    error(err) { line.className = 'status-line bad'; line.textContent = '❌ ' + (err.message || '连接失败'); },
+    done() { if (!got) { line.className = 'status-line ok'; line.textContent = '✅ 连接成功。'; } },
+    progress() {}
+  });
+  btn.disabled = false; btn.textContent = '测试连接';
+}
+
+/* ================= 初始化 ================= */
+function switchModule(m) {
+  if (m === currentModule) return;
+  if (m === 'translate') {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-translate').classList.add('active');
+  } else {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + m).classList.add('active');
+  }
+  document.querySelectorAll('.nav-btn[data-module]').forEach(b => b.classList.toggle('active', b.dataset.module === m));
+  currentModule = m;
+}
+function setupQuickActions() {
+  MODULES.forEach(m => {
+    const box = document.getElementById('qa-' + m);
+    QUICK_ACTIONS[m].forEach(a => {
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.textContent = a.label;
+      chip.onclick = () => {
+        const input = document.getElementById('input-' + m);
+        input.value = a.text;
+        input.focus();
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 160) + 'px';
+      };
+      box.appendChild(chip);
+    });
+  });
+}
+function setupInput() {
+  MODULES.forEach(m => {
+    const input = document.getElementById('input-' + m);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChat(m);
+      }
+    });
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 160) + 'px';
+    });
+    // 拖拽/粘贴文件 → 读入内容
+    input.addEventListener('paste', e => {
+      const items = (e.clipboardData || {}).items;
+      if (!items) return;
+      for (const it of items) {
+        if (it.kind === 'file') {
+          e.preventDefault();
+          const file = it.getAsFile();
+          readFileIntoInput(file, m);
+          return;
+        }
+      }
+    });
+  });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    const files = e.dataTransfer.files;
+    if (!files.length) return;
+    const m = currentModule === 'translate' ? 'writing' : currentModule;
+    readFileIntoInput(files[0], m);
+  });
+}
+function readFileIntoInput(file, module) {
+  if (!file) return;
+  if (file.size > 300 * 1024) { alert('文件过大（>300KB），请截取部分内容。'); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const text = String(reader.result || '').slice(0, 50000);
+    const input = document.getElementById('input-' + module);
+    input.value = '【文件：' + file.name + '】\n' + text + '\n\n';
+    input.focus();
+  };
+  reader.readAsText(file);
+}
+
+/* ================= 章节编辑 ================= */
+let chapters = [];
+let chapterFullText = '';
+let chapterFileName = '';
+let chFiles = [];       // 批量章节文件 [{name, ext, chapters, status}]
+let currentCh = -1;     // 当前打开的文件索引
+
+const CHAPTER_RULES = [
+  { name: '中文章节（第X章/回/卷…）', pattern: '^\\s*[第卷][0-9一二三四五六七八九十百千万零〇两]*[章回部节集卷].*', ignore_case: false },
+  { name: '英文章节（Chapter N）', pattern: '^\\s*[Cc]hapter\\s*[0-9]+.*', ignore_case: false },
+  { name: '卷 / Part / Vol', pattern: '^\\s*(Part|Vol(ume)?|卷)\\s*[0-9一二三四五六七八九十]+.*', ignore_case: true },
+  { name: '序 / 前言 / 后记 / 附录', pattern: '^\\s*(简介|序言|序[0-9一二三]?|序曲|引子|楔子|前言|自序|后记|尾声|附录[一二三四五]?|番外[一二三四五]?).*', ignore_case: false },
+  { name: '按长度均分（每章目标千字）', mode: 'length' },
+  { name: '自定义正则…', mode: 'custom' },
+];
+const CUSTOM_RULE_IDX = CHAPTER_RULES.length - 1;
+
+function initChapterRuleSelect() {
+  const sel = document.getElementById('c-rule');
+  CHAPTER_RULES.forEach((r, i) => {
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = r.name;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change', () => {
+    const r = CHAPTER_RULES[+sel.value];
+    const custom = document.getElementById('c-custom');
+    custom.style.display = r.mode === 'custom' ? 'inline-block' : 'none';
+  });
+}
+
+function syncChapters() {
+  if (currentCh >= 0 && chFiles[currentCh]) {
+    chFiles[currentCh].chapters = chapters;
+    chFiles[currentCh].name = chapterFileName;
+    renderChFiles();
+  }
+}
+
+function renderChFiles() {
+  const box = document.getElementById('c-files');
+  const info = document.getElementById('c-info');
+  if (!chFiles.length) {
+    box.classList.remove('show');
+    box.innerHTML = '';
+    info.textContent = '未导入文件';
+    return;
+  }
+  box.classList.add('show');
+  box.innerHTML = '';
+  chFiles.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'c-frow' + (i === currentCh ? ' open' : '');
+    row.innerHTML = '<span class="c-fname">' + escapeHtml(f.name) + '</span>' +
+      '<span class="c-fmeta">' + (f.status === 'parsing' ? '解析中…' : (f.chapters ? f.chapters.length + ' 章' : '')) + '</span>' +
+      '<button class="c-frm" onclick="event.stopPropagation();removeChFile(' + i + ')" title="移除">×</button>';
+    if (f.status !== 'parsing') {
+      row.onclick = () => openChFile(i);
+    }
+    box.appendChild(row);
+  });
+}
+
+function removeChFile(i) {
+  chFiles.splice(i, 1);
+  if (currentCh === i) currentCh = -1;
+  else if (currentCh > i) currentCh--;
+  if (!chFiles.length) { chapters = []; chapterFullText = ''; chapterFileName = ''; }
+  if (currentCh >= 0 && chFiles[currentCh]) {
+    openChFile(currentCh);
+  } else {
+    renderChFiles();
+    renderChapters();
+  }
+}
+
+function openChFile(i) {
+  const f = chFiles[i];
+  if (!f || !f.chapters || f.status === 'parsing') return;
+  currentCh = i;
+  chapters = f.chapters;
+  chapterFileName = f.name;
+  chapterFullText = chapters.map(c => c.text || '').join('\n\n');
+  const base = chapterFileName.replace(/\.[^.]+$/, '');
+  const t = document.getElementById('c-title');
+  if (!t.value || t.value === t.placeholder) t.value = base;
+  document.getElementById('c-info').textContent = chapterFileName + '（' + chapters.length + ' 章）';
+  renderChFiles();
+  renderChapters();
+}
+
+function handleChapterPick(files) {
+  if (!files || !files.length) return;
+  const info = document.getElementById('c-info');
+  let pending = 0;
+  for (const file of files) {
+    const ok = /\.(txt|epub|mobi)$/i.test(file.name);
+    if (!ok) { alert('已跳过：' + file.name + '（仅支持 TXT / EPUB / MOBI 格式）'); continue; }
+    if (file.size > 20 * 1024 * 1024) { alert('已跳过：' + file.name + '（超过 20MB 上限）'); continue; }
+    if (chFiles.some(f => f.name === file.name)) { continue; }
+    const entry = { name: file.name, ext: file.name.split('.').pop().toLowerCase(), chapters: null, status: 'parsing' };
+    chFiles.push(entry);
+    pending++;
+    const fd = new FormData();
+    fd.append('file', file);
+    fetch('/api/chapter/open', { method: 'POST', body: fd })
+      .then(r => r.json())
+      .then(res => {
+        if (!res.ok) { entry.status = 'error'; info.textContent = '⚠️ ' + res.error; }
+        else {
+          entry.chapters = res.chapters || [];
+          entry.status = 'ready';
+        }
+        renderChFiles();
+        if (currentCh < 0 && entry.chapters && entry.chapters.length) openChFile(chFiles.indexOf(entry));
+        else if (currentCh < 0) info.textContent = '已导入 ' + chFiles.length + ' 个文件，点击文件打开编辑';
+      })
+      .catch(e => { entry.status = 'error'; info.textContent = '⚠️ ' + file.name + ' 解析失败：' + e.message; renderChFiles(); });
+  }
+  if (pending) info.textContent = '正在解析 ' + pending + ' 个文件…';
+  else alert('没有可导入的文件。');
+}
+
+function renderChapters() {
+  const list = document.getElementById('c-list');
+  const stats = document.getElementById('c-stats');
+  const totalChars = chapters.reduce((s, c) => s + (c.text || '').length, 0);
+  stats.textContent = (chapterFileName || '未导入文件') + ' ｜ 共 ' + chapters.length + ' 章 ｜ 约 ' + totalChars + ' 字';
+  if (!chapters.length) {
+    list.innerHTML = '<div class="c-empty">请先导入 TXT / EPUB / MOBI 文件，再按规则拆分、编辑并导出</div>';
+    return;
+  }
+  list.innerHTML = '';
+  chapters.forEach((c, i) => {
+    const item = document.createElement('div');
+    item.className = 'c-item';
+    const chars = (c.text || '').length;
+    item.innerHTML =
+      '<div class="c-row">' +
+        '<span class="c-idx">' + (i + 1) + '</span>' +
+        '<input class="c-title-input" value="' + escapeHtml(c.title || '') + '" data-i="' + i + '">' +
+        '<span class="c-chars">' + chars + ' 字</span>' +
+        '<button class="c-btn" data-act="preview" data-i="' + i + '">预览</button>' +
+        '<button class="c-btn del" data-act="del" data-i="' + i + '">删除</button>' +
+      '</div>' +
+      '<div class="c-preview" data-p="' + i + '"></div>';
+    list.appendChild(item);
+  });
+  list.querySelectorAll('.c-title-input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      chapters[+inp.dataset.i].title = inp.value;
+      syncChapters();
+    });
+  });
+  list.querySelectorAll('.c-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.i;
+      if (btn.dataset.act === 'del') {
+        if (!confirm('删除第 ' + (i + 1) + ' 章「' + chapters[i].title + '」？')) return;
+        chapters.splice(i, 1);
+        syncChapters();
+        renderChapters();
+      } else {
+        const pv = list.querySelector('.c-preview[data-p="' + i + '"]');
+        if (pv.style.display === 'block') {
+          pv.style.display = 'none';
+          btn.textContent = '预览';
+        } else {
+          pv.textContent = chapters[i].text || '（空章节）';
+          pv.style.display = 'block';
+          btn.textContent = '收起';
+        }
+      }
+    });
+  });
+}
+
+function resplitChapters() {
+  const info = document.getElementById('c-info');
+  if (!chapterFullText.trim()) { info.textContent = '⚠️ 请先导入文件'; return; }
+  const sel = document.getElementById('c-rule');
+  const r = CHAPTER_RULES[+sel.value];
+  const body = { text: chapterFullText };
+  if (r.mode === 'length') {
+    body.mode = 'length';
+    body.length = parseInt(document.getElementById('c-length').value, 10) || 130;
+  } else if (r.mode === 'custom') {
+    body.mode = 'regex';
+    body.pattern = document.getElementById('c-custom').value.trim() || CHAPTER_RULES[0].pattern;
+  } else {
+    body.mode = 'regex';
+    body.pattern = r.pattern;
+    body.ignore_case = !!r.ignore_case;
+  }
+  info.textContent = '拆分中…';
+  fetch('/api/chapter/resplit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+    .then(r => r.json())
+    .then(res => {
+      if (!res.ok) { info.textContent = '⚠️ ' + res.error; return; }
+      chapters = res.chapters || [];
+      chapterFullText = chapters.map(c => c.text || '').join('\n\n');
+      syncChapters();
+      info.textContent = '✓ 拆分完成（' + chapters.length + ' 章）';
+      renderChapters();
+    })
+    .catch(e => { info.textContent = '⚠️ 请求失败：' + e.message; });
+}
+
+function exportChapter(fmt) {
+  if (!chapters.length) { alert('请先导入文件再导出。'); return; }
+  const title = document.getElementById('c-title').value.trim() || 'book';
+  const body = {
+    format: fmt,
+    title: title,
+    author: document.getElementById('c-author').value.trim(),
+    chapters: chapters,
+  };
+  fetch('/api/chapter/export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+    .then(async r => {
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        alert('导出失败：' + (j.error || ('HTTP ' + r.status)));
+        return;
+      }
+      const blob = await r.blob();
+      const a = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = title + '.' + fmt;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    })
+    .catch(e => alert('导出失败：' + e.message));
+}
+
+function refreshBalance() {
+  const el = document.getElementById('side-quota');
+  if (!el) return;
+  el.textContent = '查询中…';
+  el.classList.remove('low');
+  fetch('/api/balance')
+    .then(r => r.json())
+    .then(res => {
+      if (!res.ok) {
+        if (res.error === 'auth') el.textContent = 'API Key 无效';
+        else if (res.error === 'not_configured') el.textContent = '未配置 API Key';
+        else el.textContent = '额度查询失败';
+        return;
+      }
+      let txt = '额度 ';
+      if (res.total_balance != null) {
+        txt += (res.currency || '') + ' ' + res.total_balance;
+      } else if (!res.is_available) {
+        txt = '账户不可用';
+      }
+      el.textContent = txt;
+      try {
+        const v = parseFloat(res.total_balance);
+        if (!isNaN(v) && v < 5) el.classList.add('low');
+      } catch (e) {}
+    })
+    .catch(() => { el.textContent = '额度查询失败'; });
+}
+
+/* ================= 文本工具 ================= */
+const toolFiles = { html: [], pdf: [] };
+const toolBusy = { html: false, pdf: false };
+const toolAbort = { html: null, pdf: null };
+
+function toolMatchMode(el) {
+  return el.id.startsWith('h-') ? 'html' : (el.id.startsWith('p-') ? 'pdf' : null);
+}
+
+function bindToolInputs() {
+  document.getElementById('m-file').addEventListener('change', e => {
+    mFiles = Array.from(e.target.files || []);
+    e.target.value = '';
+    renderMerge();
+  });
+  document.getElementById('m-folder').addEventListener('change', e => {
+    const files = Array.from(e.target.files || [])
+      .filter(f => /\.txt$/i.test(f.name))
+      .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN', { numeric: true }));
+    e.target.value = '';
+    const seen = new Set(mFiles.map(f => f.name));
+    files.forEach(f => { if (!seen.has(f.name)) { mFiles.push(f); seen.add(f.name); } });
+    renderMerge();
+  });
+  document.getElementById('h-file').addEventListener('change', e => {
+    addToolFiles('html', Array.from(e.target.files || []));
+    e.target.value = '';
+  });
+  document.getElementById('h-folder').addEventListener('change', e => {
+    addToolFiles('html', Array.from(e.target.files || []));
+    e.target.value = '';
+  });
+  document.getElementById('p-file').addEventListener('change', e => {
+    addToolFiles('pdf', Array.from(e.target.files || []));
+    e.target.value = '';
+  });
+  document.getElementById('p-folder').addEventListener('change', e => {
+    addToolFiles('pdf', Array.from(e.target.files || []));
+    e.target.value = '';
+  });
+}
+
+function addToolFiles(mode, files) {
+  if (!files.length) return;
+  const seen = new Set(toolFiles[mode].map(f => f.name));
+  files.forEach(f => {
+    if (!seen.has(f.name)) {
+      toolFiles[mode].push({ name: f.name, file: f, status: 'wait', key: '', err: '' });
+      seen.add(f.name);
+    }
+  });
+  renderToolQueue(mode);
+}
+
+function renderToolQueue(mode) {
+  const box = document.getElementById(mode + '-queue');
+  const list = toolFiles[mode];
+  document.getElementById(mode + '-start').style.display = list.length ? 'inline-block' : 'none';
+  document.getElementById(mode + '-pause').style.display = list.length ? 'inline-block' : 'none';
+  document.getElementById(mode + '-clear').style.display = list.length ? 'inline-block' : 'none';
+  document.getElementById(mode + '-dl').style.display = list.some(f => f.key) ? 'inline-block' : 'none';
+  if (!list.length) { box.innerHTML = ''; return; }
+  box.innerHTML = list.map((f, i) => {
+    const st = f.status === 'done' ? '<span style="color:#16a34a">完成 ✓</span>'
+      : f.status === 'error' ? '<span style="color:#dc2626">失败</span>'
+      : f.status === 'running' ? '<span style="color:var(--accent)">处理中…</span>'
+      : '<span style="color:#9ca3af">等待</span>';
+    const dl = f.key
+      ? '<a class="btn-ghost" href="/api/tool/download?f=' + encodeURIComponent(f.key) + '" download>下载</a>'
+      : '';
+    const err = f.err ? '<span style="color:#dc2626;font-size:11px"> ' + escapeHtml(f.err) + '</span>' : '';
+    return '<div class="t-qrow"><span class="t-qname" title="' + escapeHtml(f.name) + '">'
+      + escapeHtml(f.name) + '</span><span>' + st + '</span>' + err
+      + '<span class="t-qact">' + dl + '<button class="btn-ghost t-qrm" onclick="toolRemove(\'' + mode + '\',' + i + ')">×</button></span></div>';
+  }).join('');
+}
+
+function toolRemove(mode, i) {
+  toolFiles[mode].splice(i, 1);
+  renderToolQueue(mode);
+}
+
+function toolClear(mode) {
+  if (toolBusy[mode]) { alert('正在处理中，请先暂停。'); return; }
+  toolFiles[mode] = [];
+  renderToolQueue(mode);
+  const pb = document.getElementById(mode + '-progress');
+  pb.style.display = 'none';
+  document.getElementById(mode + '-ptext').textContent = '';
+}
+
+function toolStartAll(mode) {
+  const list = toolFiles[mode];
+  const pending = list.filter(f => f.status === 'wait');
+  if (!pending.length) return;
+  if (toolBusy[mode]) return;
+  toolBusy[mode] = true;
+  const form = new FormData();
+  pending.forEach(f => form.append('file', f.file, f.name));
+  const pb = document.getElementById(mode + '-progress');
+  const bar = document.getElementById(mode + '-bar');
+  const pt = document.getElementById(mode + '-ptext');
+  pb.style.display = 'block';
+  const total = list.length;
+  let doneCount = list.filter(f => f.status === 'done').length;
+  bar.style.width = Math.round(doneCount / total * 100) + '%';
+  pt.textContent = '准备处理…';
+  const ctrl = new AbortController();
+  toolAbort[mode] = ctrl;
+  streamPost(mode === 'html' ? '/api/tool/html2txt' : '/api/tool/txt2pdf', form, {
+    progress(evt) {
+      const row = list.find(f => f.status === 'wait' && f.name === evt.name) || list.find(f => f.status === 'wait');
+      if (row) { row.status = 'running'; renderToolQueue(mode); }
+      bar.style.width = Math.round(evt.done / evt.total * 100) + '%';
+      pt.textContent = '正在处理 ' + evt.done + ' / ' + evt.total + '：' + evt.name;
+    },
+    delta() {},
+    file_done(evt) {
+      const row = list.find(f => f.status === 'running' && f.name === evt.src);
+      if (row) { row.status = 'done'; row.key = evt.key; }
+      doneCount = list.filter(f => f.status === 'done').length;
+      bar.style.width = Math.round(doneCount / total * 100) + '%';
+      renderToolQueue(mode);
+    },
+    file_error(evt) {
+      const row = list.find(f => f.status === 'running' && f.name === evt.name);
+      if (row) { row.status = 'error'; row.err = evt.message || '转换失败'; }
+      doneCount = list.filter(f => f.status === 'done').length;
+      bar.style.width = Math.round(doneCount / total * 100) + '%';
+      renderToolQueue(mode);
+    },
+    error(err) {
+      if (ctrl.signal.aborted) { toolBusy[mode] = false; renderToolQueue(mode); return; }
+      pt.textContent = '处理中断：' + (err.message || '未知错误');
+      toolBusy[mode] = false;
+      renderToolQueue(mode);
+    },
+    done() {
+      bar.style.width = '100%';
+      pt.textContent = '全部完成 ✓';
+      toolBusy[mode] = false;
+      renderToolQueue(mode);
+    },
+    abort() {
+      toolBusy[mode] = false;
+      renderToolQueue(mode);
+    },
+  });
+}
+
+function toolPauseAll(mode) {
+  if (toolAbort[mode]) { toolAbort[mode].abort(); toolAbort[mode] = null; }
+}
+
+function toolDownloadAll(mode) {
+  toolFiles[mode].filter(f => f.key).forEach((f, i) => {
+    setTimeout(() => {
+      const a = document.createElement('a');
+      a.href = '/api/tool/download?f=' + encodeURIComponent(f.key);
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }, i * 250);
+  });
+}
+
+/* ================= 合并 TXT ================= */
+let mFiles = [];
+
+function renderMerge() {
+  const box = document.getElementById('m-list');
+  const has = mFiles.length > 0;
+  document.getElementById('m-info').textContent = has ? '已选 ' + mFiles.length + ' 个文件' : '';
+  document.getElementById('m-ops').style.display = has ? 'flex' : 'none';
+  if (!mFiles.length) { box.innerHTML = '<div class="c-empty">尚未选择文件</div>'; return; }
+  box.innerHTML = mFiles.map((f, i) => '<div class="c-item"><span class="c-title-input">' + (i + 1) + '. ' + escapeHtml(f.name) + '</span><span class="c-title-input" style="color:#9ca3af">' + f.size + ' 字节</span></div>').join('');
+}
+
+function clearMerge() { mFiles = []; renderMerge(); }
+
+function runMerge() {
+  if (!mFiles.length) return;
+  const form = new FormData();
+  mFiles.forEach(f => form.append('file', f, f.name));
+  const pb = document.getElementById('m-progress');
+  const bar = document.getElementById('m-bar');
+  pb.style.display = 'block';
+  bar.style.width = '60%';
+  document.getElementById('m-ptext').textContent = '正在合并…';
+  fetch('/api/tool/merge', { method: 'POST', body: form })
+    .then(r => {
+      if (!r.ok) return r.json().then(j => { throw new Error(j.error || '合并失败'); });
+      const cd = r.headers.get('Content-Disposition') || '';
+      const m = cd.match(/filename\*=UTF-8''([^;]+)/);
+      let name = 'merged.txt';
+      if (m) { try { name = decodeURIComponent(m[1]); } catch (e) {} }
+      return r.blob().then(blob => ({ blob, name }));
+    })
+    .then(({ blob, name }) => {
+      bar.style.width = '100%';
+      document.getElementById('m-ptext').textContent = '合并完成 ✓';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    })
+    .catch(err => {
+      document.getElementById('m-ptext').textContent = '合并失败：' + err.message;
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  bindToolInputs();
+  document.querySelectorAll('.nav-btn[data-module]').forEach(b => {
+    b.addEventListener('click', () => switchModule(b.dataset.module));
+  });
+  document.getElementById('btnSettings').addEventListener('click', openSettings);
+  document.getElementById('cfg-temp').addEventListener('input', e => {
+    document.getElementById('cfg-temp-val').textContent = e.target.value;
+  });
+  document.getElementById('t-input').addEventListener('input', e => {
+    document.getElementById('t-count').textContent = e.target.value.length + ' 字';
+  });
+  document.getElementById('doc-file').addEventListener('change', e => {
+    handleDocPick(e.target.files);
+  });
+  document.getElementById('c-file').addEventListener('change', e => {
+    handleChapterPick(e.target.files);
+  });
+  initChapterRuleSelect();
+  setupQuickActions();
+  setupInput();
+  loadHistory('writing');
+  refreshBalance();
+  loadStatus();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "folders": [
+    { "path": "D:/Agent" }
+  ],
+  "settings": {
+    "files.encoding": "utf8",
+    "files.eol": "\n",
+    "editor.fontSize": 14,
+    "editor.tabSize": 4,
+    "terminal.integrated.defaultProfile.windows": "Command Prompt"
+  }
+}
